@@ -76,6 +76,35 @@ local function manageEmployee(player, groupName, groupType)
     lib.showContext('memberMenu')
 end
 
+---Opens a menu to edit a grade
+---@param groupType GroupType
+---@param groupData Job|Gang
+---@param grade integer
+local function editGrade(groupType, groupData, grade)
+    local gradeData = groupData.grades[grade]
+    local rows = {
+        { type = 'input', label = locale('grade.label'), default = gradeData.name, required = true },
+    }
+    if groupType == 'job' then
+        rows[#rows+1] = { type = 'number', label = locale('grade.pay'), default = gradeData.payment }
+        rows[#rows+1] = { type = 'checkbox', label = locale('grade.boss'), checked = gradeData.isboss }
+        rows[#rows+1] = { type = 'checkbox', label = locale('grade.bank'), checked = gradeData.bankAuth }
+    end
+    local data = lib.inputDialog(("%s: %s"):format(groupData.label, gradeData.name), rows)
+
+    if data then
+        gradeData.name = data[1]
+        if groupType == 'job' then
+            gradeData.payment = data[2]
+            gradeData.isboss = data[3]
+            gradeData.bankAuth = data[4]
+        end
+        lib.callback.await('qbx_management:server:modifyGrade', nil, groupType, grade, gradeData)
+    end
+
+    lib.showContext('openBossMenu')
+end
+
 -- Presents a menu of employees the work for a job or gang.
 -- Allows selection of an employee to perform further actions
 ---@param groupType GroupType
@@ -140,6 +169,36 @@ local function showHireMenu(groupType)
     lib.showContext('hireMenu')
 end
 
+---Opens grade management menu
+---@param groupType GroupType
+local function showGradeMenu(groupType)
+    local gradeOpts = {}
+    local groupName = QBX.PlayerData[groupType].name
+    local groupData = groupType == 'gang' and GANGS[groupName] or JOBS[groupName]
+
+    for i = 1, #groupData.grades do
+        local grade = groupData.grades[i]
+        gradeOpts[#gradeOpts+1] = {
+            title = grade.name,
+            description = locale(("menu.manage_%s_grade"):format(groupType)),
+            icon = 'pen-to-square',
+            disabled = QBX.PlayerData[groupType].grade.level < i,
+            onSelect = function()
+                editGrade(groupType, groupData, i)
+            end,
+        }
+    end
+
+    lib.registerContext({
+        id = 'gradeMenu',
+        title = locale(("menu.manage_%s_grades"):format(groupType)),
+        menu = 'openBossMenu',
+        options = gradeOpts,
+    })
+
+    lib.showContext('gradeMenu')
+end
+
 -- Opens main boss menu changing function based on the group provided.
 ---@param groupType GroupType
 function OpenBossMenu(groupType)
@@ -164,6 +223,16 @@ function OpenBossMenu(groupType)
         },
     }
 
+    if GetConvar('qbx:enableGroupManagement', 'false') == 'true' then
+        bossMenu[#bossMenu+1] = {
+            title = locale(("menu.manage_%s_grades"):format(groupType)),
+            description = locale(("menu.manage_%s_grades_desc"):format(groupType)),
+            icon = 'clipboard-list',
+            onSelect = function()
+                showGradeMenu(groupType)
+            end,
+        }
+    end
 
     for _, menuItem in pairs(dynamicMenuItems) do
         if string.lower(menuItem.args.type) == groupType then
@@ -175,6 +244,9 @@ function OpenBossMenu(groupType)
         id = 'openBossMenu',
         title = groupType == 'gang' and string.upper(QBX.PlayerData.gang.label) or string.upper(QBX.PlayerData.job.label),
         options = bossMenu,
+        onExit = function()
+            lib.showTextUI(groupType == 'gang' and locale('menu.gang_management') or locale('menu.boss_management'))
+        end,
     })
 
     lib.showContext('openBossMenu')
@@ -249,11 +321,6 @@ if GetConvar('qbx:enablebridge', 'true') == 'true' then
     end)
 end
 
-AddEventHandler('onClientResourceStart', function(resource)
-    if cache.resource ~= resource then return end
-    initZones()
-end)
-
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
     isLoggedIn = true
 end)
@@ -262,6 +329,21 @@ RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
     isLoggedIn = false
 end)
 
+---Receive job updates from core
+---@param jobName string
+---@param job Job
+RegisterNetEvent('qbx_core:client:onJobUpdate', function(jobName, job)
+    JOBS[jobName] = job
+end)
+
+---Receive gang updates from core
+---@param gangName string
+---@param gang Gang
+RegisterNetEvent('qbx_core:client:onGangUpdate', function(gangName, gang)
+    GANGS[gangName] = gang
+end)
+
 CreateThread(function()
+    initZones()
     if not isLoggedIn then return end
 end)

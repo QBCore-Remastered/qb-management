@@ -21,7 +21,20 @@
         "last_checkin": "Last check in",
         "employee_status": "Employee status",
         "on_duty": "On Duty",
-        "off_duty": "Off Duty"
+        "off_duty": "Off Duty",
+        "manage_job_grades": "Manage Positions",
+        "manage_gang_grades": "Manage Gang Ranks",
+        "manage_job_grades_desc": "Adjust job positions & pay",
+        "manage_gang_grades_desc": "Adjust gang ranks",
+        "manage_job_grade": "Modify job position",
+        "manage_gang_grade": "Modify gang rank"
+    },
+    "grade" : {
+        "label": "Title",
+        "pay": "Wage",
+        "boss": "Boss",
+        "bank": "Bank access",
+        "success": "Update successful"
     },
     "error": {
         "cant_promote": "You can't change the grade of a person who's own grade is greater or equal to yours...",

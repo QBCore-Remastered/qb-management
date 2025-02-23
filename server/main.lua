@@ -4,17 +4,42 @@ if not lib.checkDependency('ox_lib', '3.13.0', true) then error() return end
 
 local config = require 'config.server'
 local logger = require '@qbx_core.modules.logger'
+local storage = require 'server.storage'
+local managementEnabled = (GetConvar('qbx:enableGroupManagement', 'false') == 'true')
 local JOBS = exports.qbx_core:GetJobs()
 local GANGS = exports.qbx_core:GetGangs()
 local playersClockedIn = {}
 local menus = {}
+local ready = false
 
-for groupName, menuInfo in pairs(config.menus) do
-    ---@diagnostic disable-next-line: inject-field
-    menuInfo.groupName = groupName
-    menus[#menus + 1] = menuInfo
+---Initialize storage, menus & managed groups
+local function init()
+    storage.createActivityTable()
+
+    for groupName, menuInfo in pairs(config.menus) do
+        ---@diagnostic disable-next-line: inject-field
+        menuInfo.groupName = groupName
+        menus[#menus + 1] = menuInfo
+    end
+
+    storage.cleanupActivity()
+
+    if not managementEnabled then return end
+    storage.createGroupsTable()
+
+    local managedJobs = storage.fetchJobs()
+    local managedGangs = storage.fetchGangs()
+
+    exports.qbx_core:CreateJobs(managedJobs)
+    exports.qbx_core:CreateGangs(managedGangs)
+
+    ready = true
 end
 
+---Build group menu
+---@param groupName string
+---@param groupType GroupType
+---@return table
 local function getMenuEntries(groupName, groupType)
     local menuEntries = {}
 
@@ -24,7 +49,7 @@ local function getMenuEntries(groupName, groupType)
         local grade = groupEntries[i].grade
         local player = exports.qbx_core:GetPlayerByCitizenId(citizenid) or exports.qbx_core:GetOfflinePlayer(citizenid)
         local namePrefix = player.Offline and '❌ ' or '🟢 '
-        local playerActivityData = groupType == 'job' and GetPlayerActivityData(citizenid, groupName) or nil
+        local playerActivityData = groupType == 'job' and storage.getPlayerActivityData(citizenid, groupName) or nil
         local playerClockData = playersClockedIn[player.PlayerData.source]
         local playerLastCheckIn = playerClockData and os.date(config.formatDateTime, playerClockData.time) or playerActivityData?.last_checkin
         menuEntries[#menuEntries + 1] = {
@@ -226,6 +251,31 @@ lib.callback.register('qbx_management:server:getBossMenus', function()
     return menus
 end)
 
+---Callback for updating a job/gang grade
+---@param source integer
+---@param groupType GroupType
+---@param grade integer
+---@param gradeData JobGradeData|GangGradeData
+lib.callback.register('qbx_management:server:modifyGrade', function(source, groupType, grade, gradeData)
+    if not managementEnabled then return end
+    local player = exports.qbx_core:GetPlayer(source)
+    if not player.PlayerData[groupType].isboss or player.PlayerData[groupType].grade.level < grade then
+        lib.print.error("User attempted to update grade without permission. Possible exploit: ", player.PlayerData.citizenid)
+        return
+    end
+    local groupName = player.PlayerData[groupType].name
+    local group = groupType == 'job' and JOBS[groupName] or GANGS[groupName]
+    if not (group and group.grades[grade]) then return end
+
+    if groupType == 'job' then
+        exports.qbx_core:UpsertJobGrade(groupName, grade, gradeData)
+    else
+        exports.qbx_core:UpsertGangGrade(groupName, grade, gradeData)
+    end
+
+    exports.qbx_core:Notify(source, locale('grade.success'), 'success')
+end)
+
 ---Creates a boss zone for the specified group
 ---@param menuInfo MenuInfo
 local function registerBossMenu(menuInfo)
@@ -245,7 +295,7 @@ end
 ---@param source number
 local function onPlayerUnload(source)
     if playersClockedIn[source] then
-        OnPlayerCheckOut(playersClockedIn[source])
+        storage.onPlayerCheckOut(playersClockedIn[source])
         playersClockedIn[source] = nil
     end
 end
@@ -272,6 +322,24 @@ AddEventHandler('QBCore:Server:OnJobUpdate', function(source, job)
     end
 end)
 
+---Receive job updates from core
+---@param jobName string
+---@param job Job
+AddEventHandler('qbx_core:server:onJobUpdate', function(jobName, job)
+    JOBS[jobName] = job
+    if not (managementEnabled and ready) then return end
+    storage.updateGroup(jobName, 'job', job)
+end)
+
+---Receive gang updates from core
+---@param gangName string
+---@param gang Gang
+AddEventHandler('qbx_core:server:onGangUpdate', function(gangName, gang)
+    GANGS[gangName] = gang
+    if not (managementEnabled and ready) then return end
+    storage.updateGroup(gangName, 'gang', gang)
+end)
+
 ---@param source number
 ---@param duty boolean
 AddEventHandler('QBCore:Server:SetDuty', function(source, duty)
@@ -293,3 +361,5 @@ end)
 AddEventHandler('playerDropped', function()
     onPlayerUnload(source)
 end)
+
+init()

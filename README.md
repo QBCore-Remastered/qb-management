@@ -8,3 +8,6 @@ Business and gang management menu for Qbox
 - View current employees and gang members
 - Hire, fire, promote, and demote both online and offline employees and gang members
 - Logging the hiring and firing of employees and gang members
+
+## Convars
+- `qbx:enableGroupManagement` - Defaults to `"false"`. Set to `"true"` to allow bosses to manage job/gang grades.
