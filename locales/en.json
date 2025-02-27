@@ -44,5 +44,17 @@
         "promoted_to": "You've been promoted to ",
         "hired_to": "You've been hired into ",
         "hired_into": "You hired %s into %s"
+    },
+    "logs": {
+        "retrieved_employees": "Retrieved employees for group %s of type %s",
+        "updated_grade": "Updated grade for citizenId %s from %d to %d in group %s of type %s",
+        "hired_employee": "%s | %s hired %s into %s at grade %s",
+        "retrieved_players": "Retrieved list of players for possible hiring",
+        "fired_employee": "Fired employee %s from group %s of type %s",
+        "fired_employee_success": "%s | %s fired %s from %s",
+        "retrieved_boss_menus": "Retrieved boss menus",
+        "registered_boss_menu": "Registered boss menu for group %s",
+        "player_checkin": "Player %s checked in for job %s",
+        "player_unload": "Player %d unloaded"
     }
 }

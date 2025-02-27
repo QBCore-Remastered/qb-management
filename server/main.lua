@@ -53,6 +53,13 @@ lib.callback.register('qbx_management:server:getEmployees', function(source, gro
         return a.grade > b.grade
     end)
 
+    logger.log({
+        source = source,
+        event = 'qbx_management:server:getEmployees',
+        message = locale('logs.retrieved_employees', groupName, groupType),
+        webhook = config.discordWebhook
+    })
+
     return menuEntries
 end)
 
@@ -93,6 +100,13 @@ lib.callback.register('qbx_management:server:updateGrade', function(source, citi
         exports.qbx_core:Notify(employee.PlayerData.source, locale('success.promoted_to')..gradeName..'.', 'success')
     end
     exports.qbx_core:Notify(source, locale('success.promoted'), 'success')
+
+    logger.log({
+        source = source,
+        event = 'qbx_management:server:updateGrade',
+        message = locale('logs.updated_grade', citizenId, oldGrade, newGrade, jobName, groupType),
+        webhook = config.discordWebhook
+    })
 end)
 
 -- Callback to hire online player as employee of a given group
@@ -127,9 +141,16 @@ lib.callback.register('qbx_management:server:hireEmployee', function(source, emp
     local playerFullName = player.PlayerData.charinfo.firstname..' '..player.PlayerData.charinfo.lastname
     local targetFullName = target.PlayerData.charinfo.firstname..' '..target.PlayerData.charinfo.lastname
     local organizationLabel = player.PlayerData[groupType].label
+
     exports.qbx_core:Notify(source, locale('success.hired_into', targetFullName, organizationLabel), 'success')
     exports.qbx_core:Notify(target.PlayerData.source, locale('success.hired_to')..organizationLabel, 'success')
-    logger.log({source = 'qbx_management', event = 'hireEmployee', message = string.format('%s | %s hired %s into %s at grade %s', logArea, playerFullName, targetFullName, organizationLabel, 0), webhook = config.discordWebhook})
+
+    logger.log({
+        source = source,
+        event = 'qbx_management:server:hireEmployee',
+        message = locale('logs.hired_employee', logArea, playerFullName, targetFullName, organizationLabel, 0),
+        webhook = config.discordWebhook
+    })
 end)
 
 -- Returns playerdata for a given table of player server ids.
@@ -153,6 +174,13 @@ lib.callback.register('qbx_management:server:getPlayers', function(_, closePlaye
         return a.name < b.name
     end)
 
+    logger.log({
+        source = 'qbx_management',
+        event = 'qbx_management:server:getPlayers',
+        message = locale('logs.retrieved_players'),
+        webhook = config.discordWebhook
+    })
+
     return players
 end)
 
@@ -165,11 +193,13 @@ end)
 ---@return boolean success
 local function fireEmployee(employeeCitizenId, boss, groupName, groupType)
     local employee = exports.qbx_core:GetPlayerByCitizenId(employeeCitizenId) or exports.qbx_core:GetOfflinePlayer(employeeCitizenId)
+
     if employee.PlayerData.citizenid == boss.PlayerData.citizenid then
         local message = groupType == 'gang' and locale('error.kick_yourself') or locale('error.fire_yourself')
         exports.qbx_core:Notify(boss.PlayerData.source, message, 'error')
         return false
     end
+
     if not employee then
         exports.qbx_core:Notify(boss.PlayerData.source, locale('error.person_doesnt_exist'), 'error')
         return false
@@ -177,6 +207,7 @@ local function fireEmployee(employeeCitizenId, boss, groupName, groupType)
 
     local employeeGrade = groupType == 'job' and employee.PlayerData.jobs?[groupName] or employee.PlayerData.gangs?[groupName]
     local bossGrade = groupType == 'job' and boss.PlayerData.jobs?[groupName] or boss.PlayerData.gangs?[groupName]
+
     if employeeGrade >= bossGrade then
         exports.qbx_core:Notify(boss.PlayerData.source, locale('error.fire_boss'), 'error')
         return false
@@ -195,6 +226,13 @@ local function fireEmployee(employeeCitizenId, boss, groupName, groupType)
         exports.qbx_core:Notify(employee.PlayerData.source, message, 'error')
     end
 
+    logger.log({
+        source = boss.PlayerData.source,
+        event = 'qbx_management:server:fireEmployee',
+        message = locale('logs.fired_employee', employeeCitizenId, groupName, groupType),
+        webhook = config.discordWebhook
+    })
+
     return true
 end
 
@@ -209,6 +247,7 @@ lib.callback.register('qbx_management:server:fireEmployee', function(source, emp
 
     if not player.PlayerData[groupType].isboss then return end
     if not firedEmployee then lib.print.error("not able to find player with citizenid", employee) return end
+
     local success = fireEmployee(employee, player, player.PlayerData[groupType].name, groupType)
     local employeeFullName = firedEmployee.PlayerData.charinfo.firstname..' '..firedEmployee.PlayerData.charinfo.lastname
 
@@ -216,13 +255,24 @@ lib.callback.register('qbx_management:server:fireEmployee', function(source, emp
         local logArea = groupType == 'gang' and 'Gang' or 'Boss'
         local logType = groupType == 'gang' and locale('error.gang_fired') or locale('error.job_fired')
         exports.qbx_core:Notify(source, logType, 'success')
-        logger.log({source = 'qbx_management', event = 'fireEmployee', message = string.format('%s | %s fired %s from %s', logArea, playerFullName, employeeFullName, organizationLabel), webhook = config.discordWebhook})
+        logger.log({
+            source = source,
+            event = 'qbx_management:server:fireEmployee',
+            message = locale('logs.fired_employee_success', logArea, playerFullName, employeeFullName, organizationLabel),
+            webhook = config.discordWebhook
+        })
     else
         exports.qbx_core:Notify(source, locale('error.unable_fire'), 'error')
     end
 end)
 
 lib.callback.register('qbx_management:server:getBossMenus', function()
+    logger.log({
+        source = 'qbx_management',
+        event = 'qbx_management:server:getBossMenus',
+        message = locale('logs.retrieved_boss_menus'),
+        webhook = config.discordWebhook
+    })
     return menus
 end)
 
@@ -231,6 +281,12 @@ end)
 local function registerBossMenu(menuInfo)
     menus[#menus + 1] = menuInfo
     TriggerClientEvent('qbx_management:client:bossMenuRegistered', -1, menuInfo)
+    logger.log({
+        source = 'qbx_management',
+        event = 'qbx_management:server:registerBossMenu',
+        message = locale('logs.registered_boss_menu', menuInfo.groupName),
+        webhook = config.discordWebhook
+    })
 end
 
 exports('RegisterBossMenu', registerBossMenu)
@@ -240,6 +296,12 @@ exports('RegisterBossMenu', registerBossMenu)
 ---@param job string
 local function doPlayerCheckIn(source, citizenid, job)
     playersClockedIn[source] = { citizenid = citizenid, job = job, time = os.time() }
+    logger.log({
+        source = source,
+        event = 'qbx_management:server:doPlayerCheckIn',
+        message = locale('logs.player_checkin', citizenid, job),
+        webhook = config.discordWebhook
+    })
 end
 
 ---@param source number
@@ -247,6 +309,12 @@ local function onPlayerUnload(source)
     if playersClockedIn[source] then
         OnPlayerCheckOut(playersClockedIn[source])
         playersClockedIn[source] = nil
+        logger.log({
+            source = source,
+            event = 'qbx_management:server:onPlayerUnload',
+            message = locale('logs.player_unload', source),
+            webhook = config.discordWebhook
+        })
     end
 end
 
